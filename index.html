@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html class="light" lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Evaluación de Lógica Operativa</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#003527",
+                        "secondary": "#006c49",
+                        "secondary-container": "#6cf8bb",
+                        "background": "#f8f9ff",
+                        "on-background": "#121c2a",
+                        "surface-container-highest": "#d9e3f6",
+                        "outline-variant": "#bfc9c3",
+                        "on-surface-variant": "#404944",
+                    },
+                    fontFamily: {
+                        "headline": ["Lora", "serif"],
+                        "body": ["Public Sans", "sans-serif"],
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .step-transition { transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+        input[type="radio"]:checked + div { border-color: #006c49; background-color: rgba(108, 248, 187, 0.15); }
+        input[type="radio"]:checked + div .check-dot { transform: scale(1); }
+
+        /* PHASE 1: Loading Screen */
+        @keyframes spinner { to { transform: rotate(360deg); } }
+        .loading-spin { animation: spinner 0.8s linear infinite; }
+        @keyframes fadeOut { to { opacity: 0; visibility: hidden; } }
+        .phase-1-container { animation: fadeOut 0.5s ease forwards 1.5s; }
+
+        /* PHASE 2: Main Card Reveal */
+        @keyframes cardReveal { to { opacity: 1; transform: scale(1); } }
+        .reveal-card { 
+            opacity: 0; 
+            transform: scale(0.9); 
+            animation: cardReveal 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1.5s; 
+        }
+
+        /* PHASE 3: Content Animations */
+        @keyframes iconReveal { 0% { transform: scale(0) rotate(-45deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+        @keyframes shimmer { 0% { filter: brightness(1); } 50% { filter: brightness(1.3) drop-shadow(0 0 10px rgba(108, 248, 187, 0.45)); } 100% { filter: brightness(1); } }
+        .shield-shimmer { animation: iconReveal 0.7s ease-out forwards 2s, shimmer 2s linear infinite 3s; }
+        
+        .gauge-marker { left: 0%; transition: left 1.5s cubic-bezier(0.34, 1.56, 0.64, 1); transition-delay: 2.2s; }
+        
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(108, 248, 187, 0.45); } 70% { box-shadow: 0 0 0 15px rgba(108, 248, 187, 0); } 100% { box-shadow: 0 0 0 0 rgba(108, 248, 187, 0); } }
+        .pulse-halo { animation: pulse 2s infinite 3.5s; }
+        
+        @keyframes staggerIn { to { opacity: 1; transform: translateY(0); } }
+        .stagger-item { opacity: 0; transform: translateY(10px); }
+        .stagger-1 { animation: staggerIn 0.5s ease forwards 2.4s; }
+        .stagger-2 { animation: staggerIn 0.5s ease forwards 2.5s; }
+        .stagger-3 { animation: staggerIn 0.5s ease forwards 2.6s; }
+        .stagger-4 { animation: staggerIn 0.5s ease forwards 2.7s; }
+        
+        /* PHASE 4: CTA Button */
+        @keyframes buttonPulse { 0% { box-shadow: 0 0 0 0 rgba(6, 78, 59, 0.4); } 50% { box-shadow: 0 0 20px 2px rgba(108, 248, 187, 0.3); } 100% { box-shadow: 0 0 0 0 rgba(6, 78, 59, 0.4); } }
+        .neon-pulse { animation: buttonPulse 2.5s infinite 4s; }
+
+        @keyframes confettiFall { 0% { transform: translateY(-50px) rotate(0); opacity: 1; } 100% { transform: translateY(600px) rotate(720deg); opacity: 0; } }
+        .confetti-piece { position: absolute; width: 8px; height: 8px; top: -20px; z-index: 100; animation: confettiFall 2.8s ease-out forwards; }
+
+        @media print {
+            header, #progress-container, footer, button, .no-print, #loading-overlay, #confetti-container { display: none !important; }
+            body { background: white; }
+            .glass-card { 
+                border: 1px solid #ddd !important; box-shadow: none !important;
+                background: white !important; backdrop-filter: none !important;
+                opacity: 1 !important; transform: none !important;
+            }
+            .stagger-item { opacity: 1 !important; transform: none !important; }
+            main { padding: 0; max-width: 100%; margin-top: 0; }
+            #results-container { display: block !important; opacity: 1 !important; }
+            .print-break { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body" id="app">
+    
+    <!-- Candidate Name Modal -->
+    <div id="name-modal" class="fixed inset-0 z-[80] bg-on-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="glass-card max-w-md w-full rounded-3xl p-8 shadow-2xl border border-white/60 text-center relative animate-[cardReveal_0.4s_ease-out]">
+            <!-- Language Toggle on Popup -->
+            <button onclick="toggleLanguage()" class="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest hover:bg-outline-variant/30 rounded-full transition-all text-[10px] font-bold uppercase tracking-wider text-primary">
+                <i class="ph ph-translate"></i> <span class="lang-label-text">ESP</span>
+            </button>
+
+            <div class="w-16 h-16 mx-auto rounded-2xl bg-secondary-container flex items-center justify-center mb-5 text-primary text-3xl mt-4">
+                <i class="ph ph-identification-card"></i>
+            </div>
+            <h2 id="modal-title" class="font-headline text-2xl font-bold text-primary mb-2">Registro de Candidato</h2>
+            <p id="modal-subtitle" class="text-sm text-on-surface-variant mb-8 leading-relaxed">
+                Ingresa tu nombre para emitir tu certificado y código de verificación al finalizar.
+            </p>
+            <form onsubmit="handleStartAssessment(event)" class="space-y-5">
+                <div class="text-left">
+                    <label id="modal-name-label" class="block text-xs font-bold uppercase tracking-wider text-primary mb-2" for="candidate-name-input">Nombre Completo</label>
+                    <input type="text" id="candidate-name-input" required placeholder="Ej. Juan Pérez" class="w-full px-4 py-3.5 rounded-xl border border-outline-variant bg-white/90 text-sm focus:ring-2 focus:ring-secondary focus:border-secondary outline-none transition-all placeholder:text-outline-variant text-on-background" autocomplete="name" />
+                </div>
+                <button type="submit" id="modal-start-btn" class="w-full py-4 bg-primary hover:bg-secondary text-white font-bold rounded-xl text-sm transition-all shadow-lg hover:shadow-secondary/20 flex items-center justify-center gap-2 group">
+                    <span>Comenzar Evaluación</span> <i class="ph ph-arrow-right transition-transform group-hover:translate-x-1"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confetti Container -->
+    <div id="confetti-container" class="fixed inset-0 pointer-events-none overflow-hidden z-[70]"></div>
+
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 border-b border-outline-variant/30 shadow-sm no-print">
+        <div class="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-primary rounded flex items-center justify-center">
+                    <i class="ph ph-steering-wheel text-white text-lg"></i>
+                </div>
+                <div class="text-xl font-black tracking-tighter text-primary font-headline uppercase">
+                    TAScotland OP-LOGIC
+                </div>
+            </div>
+            <button onclick="toggleLanguage()" class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-full hover:bg-surface-container-highest transition-all text-xs font-bold uppercase tracking-wider">
+                <i class="ph ph-translate"></i> <span class="lang-label-text">ESP</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-3xl mx-auto px-6 py-8">
+        <div id="progress-container" class="mb-8 text-center hidden">
+            <h1 id="main-title" class="font-headline text-2xl md:text-3xl text-primary mb-3">Evaluación Operativa</h1>
+            <p id="main-desc" class="text-sm text-on-surface-variant max-w-xl mx-auto mb-6">Demuestra tu criterio y sentido común en escenarios reales.</p>
+            <div class="max-w-md mx-auto space-y-2">
+                <div class="flex justify-between items-end px-1">
+                    <span id="progress-label" class="text-[10px] font-bold text-secondary uppercase tracking-widest"></span>
+                    <span id="progress-percent" class="text-[10px] font-bold text-on-surface-variant"></span>
+                </div>
+                <div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-secondary w-[0%] rounded-full transition-all duration-700 ease-out"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="question-wrapper" class="relative hidden"></div>
+
+        <div id="results-container" class="hidden relative">
+            <div id="loading-overlay" class="phase-1-container fixed inset-0 z-[60] bg-background flex flex-col items-center justify-center">
+                <div class="w-16 h-16 border-4 border-secondary/20 border-t-secondary rounded-full loading-spin mb-4"></div>
+                <p id="calculating-text" class="text-xs font-bold text-primary uppercase tracking-[0.3em]">Procesando...</p>
+            </div>
+
+            <div class="reveal-card glass-card border-2 border-secondary/20 rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-2xl shadow-secondary/10">
+                <div class="relative z-10">
+                    
+                    <!-- Candidate Certificate Header -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-6 border-b border-outline-variant/30 stagger-item stagger-1">
+                        <div>
+                            <p class="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1" id="cert-label">Certificado de Evaluación</p>
+                            <h3 class="text-2xl font-headline text-primary font-bold" id="display-candidate-name">Nombre</h3>
+                            <p class="text-xs text-on-surface-variant flex items-center gap-1 mt-1">
+                                <i class="ph ph-calendar-blank"></i> <span id="display-date"></span>
+                            </p>
+                        </div>
+                        <div class="bg-primary/5 border border-primary/10 rounded-xl p-3 text-right">
+                            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-0.5" id="code-label">Código Verificación</p>
+                            <p class="text-sm font-mono font-bold text-primary" id="display-code">----</p>
+                        </div>
+                    </div>
+
+                    <!-- Score Result -->
+                    <div class="flex items-center gap-4 mb-8 stagger-item stagger-1">
+                        <div class="w-14 h-14 rounded-2xl bg-secondary-container flex items-center justify-center shield-shimmer shrink-0">
+                            <i id="result-icon" class="text-secondary text-3xl"></i>
+                        </div>
+                        <div>
+                            <p id="result-score-text" class="text-sm font-bold text-secondary mb-1">Puntuación: <span id="final-score"></span>/75</p>
+                            <h2 id="result-title" class="font-headline text-2xl md:text-3xl text-primary leading-tight"></h2>
+                        </div>
+                    </div>
+                    
+                    <!-- Gauge -->
+                    <div class="mb-8 stagger-item stagger-2 print-break">
+                        <div class="flex justify-between text-[10px] font-black uppercase text-on-surface-variant mb-2">
+                            <span id="tier-1-label">Requiere Mejora</span>
+                            <span id="tier-3-label">Excelente</span>
+                        </div>
+                        <div class="relative h-3 w-full bg-gradient-to-r from-red-300 via-yellow-200 to-green-400 rounded-full">
+                            <div id="gauge-ptr" class="gauge-marker absolute -top-1 w-5 h-5 bg-primary border-2 border-white rounded-full shadow-lg pulse-halo transition-all"></div>
+                        </div>
+                    </div>
+
+                    <div class="p-5 bg-white/60 rounded-2xl border border-outline-variant/30 mb-8 stagger-item stagger-2 print-break">
+                        <p id="result-desc" class="text-sm text-on-surface-variant leading-relaxed italic"></p>
+                    </div>
+
+                    <!-- Diagnostics Review -->
+                    <div class="mb-8 stagger-item stagger-3">
+                        <h4 id="diagnostics-title" class="font-bold text-sm uppercase tracking-widest text-primary flex items-center gap-2 mb-4">
+                            <i class="ph ph-clipboard-text"></i> Revisión de Respuestas
+                        </h4>
+                        <div id="diagnostics-list" class="space-y-3">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <div class="p-6 border-t border-outline-variant/20 flex flex-col md:flex-row items-center justify-center gap-4 print:border-none stagger-item stagger-4 no-print">
+                        <button onclick="window.print()" class="px-8 py-3.5 bg-primary text-white rounded-xl font-bold text-sm hover:scale-105 transition-all flex items-center gap-2 neon-pulse">
+                            <i class="ph ph-printer"></i> <span id="print-btn">Imprimir Reporte</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="location.reload()" class="mt-8 mx-auto block text-xs font-bold text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest no-print stagger-item stagger-4">
+                <i class="ph ph-arrow-counter-clockwise"></i> <span id="reset-btn">Reiniciar Evaluación</span>
+            </button>
+        </div>
+    </main>
+
+    <script>
+        const content = {
+            en: {
+                modalTitle: "Candidate Registration",
+                modalSub: "Enter your full name to issue your certificate and verification code upon completion.",
+                modalName: "Full Name",
+                modalBtn: "Start Assessment",
+                mainTitle: "Operational Logic Assessment",
+                mainDesc: "Demonstrate your judgment and common sense in real operational scenarios.",
+                langBtn: "ESP",
+                progLabel: "Question",
+                progOf: "of",
+                calculating: "Processing...",
+                certLabel: "Assessment Certificate",
+                codeLabel: "Verification Code",
+                scoreText: "Score",
+                tier1: "Requires Improvement",
+                tier3: "Excellent",
+                diagTitle: "Answer Review & Rationales",
+                print: "Print Report",
+                restart: "Restart Assessment",
+                questions: [
+                    { q: "A bus appears assigned to two drivers on the daily schedule. What do you do?", cat: "Fleet Assignment", options: [
+                        { text: "Assume it is a split shift and say nothing.", pts: 0 },
+                        { text: "Treat it as an anomaly and ask in the group chat to confirm.", pts: 5 }
+                    ], rationale: "Verifying before assuming prevents dispatch errors and staffing mix-ups." },
+                    { q: "You have 52 passengers assigned to a 51-seat bus. What do you do?", cat: "Capacity & Overbooking", options: [
+                        { text: "Assume someone probably won't show up and let it slide.", pts: 0 },
+                        { text: "Notify the group chat immediately before departure so dispatch can resolve it.", pts: 5 },
+                        { text: "Leave it to be sorted out in the morning and stick strictly to your routine duties.", pts: 0 }
+                    ], rationale: "Flagging overbooking early prevents issues before passengers board." },
+                    { q: "You are asked to place headphones on bus seats and you find one broken. What do you do?", cat: "Quality of Service", options: [
+                        { text: "Replace it with a new one, set aside the damaged one, and report it in the group chat.", pts: 5 },
+                        { text: "Leave it on the seat; if it does not work, the passenger can ask for a replacement later.", pts: 0 },
+                        { text: "Throw it straight into the trash without notifying anyone.", pts: 0 }
+                    ], rationale: "Ensures passengers receive working gear while logging damaged stock." },
+                    { q: "A driver returns equipment prepared earlier and one transmitter is missing. What do you do?", cat: "Inventory Custody", options: [
+                        { text: "Let it slide; it is normal for gear to go missing.", pts: 0 },
+                        { text: "Write it down on a loose sheet of paper for someone to read later.", pts: 0 },
+                        { text: "Report it in the group chat and ask the driver what happened to the device.", pts: 5 }
+                    ], rationale: "Establishes asset chain of custody at the exact moment of handover." },
+                    { q: "Each whisper case holds 32 units preset to a specific channel. A bus has 40 passengers speaking one language and 16 speaking a different one. How many total cases must you prepare?", cat: "Calculation", options: [
+                        { text: "2 cases (1 for each language).", pts: 0 },
+                        { text: "3 cases (2 for the group of 40 and 1 for the group of 16).", pts: 5 },
+                        { text: "4 cases (2 for each language).", pts: 0 }
+                    ], rationale: "40 people require 2 cases (32 + 8), and 16 people require 1 case. Total: 3 cases." },
+                    { q: "You have a heavily soiled bus that is not scheduled to run tomorrow. What do you do?", cat: "Prioritization", options: [
+                        { text: "Remove trash and surface dirt. Notify the group with photos documenting the bus's condition, stating it will be deep-cleaned tomorrow during regular downtime.", pts: 5 },
+                        { text: "Deep-clean it immediately regardless of time to secure overtime pay.", pts: 0 },
+                        { text: "Ask the group chat what should be done.", pts: 0 }
+                    ], rationale: "Clears perishable waste, documents bus condition, and defers deep cleaning without incurring unauthorized overtime." },
+                    { q: "You finish cleaning a section of the bus, but it remains stained because you do not know how to remove that type of grime. What do you do?", cat: "Quality Standards", options: [
+                        { text: "Leave it alone; you already wiped it down.", pts: 0 },
+                        { text: "Ask a coworker or supervisor for the proper method/chemical and clean it again.", pts: 5 },
+                        { text: "Spray air freshener so it at least smells clean.", pts: 0 }
+                    ], rationale: "Clarifying technique ensures quality and avoids leaving substandard work." },
+                    { q: "When performing a general interior cleaning of a bus, what is the logical cleaning sequence?", cat: "Cleaning Logic", options: [
+                        { text: "Top to bottom: ceilings, windows, and seats first; sweep and mop the floor last.", pts: 5 },
+                        { text: "Mop the floor first, then dust the overhead luggage racks and seats.", pts: 0 },
+                        { text: "The order does not matter as long as disinfectant is used.", pts: 0 }
+                    ], rationale: "Cleaning top-to-bottom prevents falling dust and debris from contaminating clean floors." },
+                    { q: "1 liter of disinfectant cleans exactly 4 buses. If your shift requires cleaning 12 buses, how many liters do you need?", cat: "Chemical Dilution", options: [
+                        { text: "2 liters.", pts: 0 },
+                        { text: "3 liters.", pts: 5 },
+                        { text: "4 liters.", pts: 0 }
+                    ], rationale: "Simple calculation: 12 / 4 = 3 liters." },
+                    { q: "You just finished cleaning the bus toilet with a microfiber cloth. What do you do with that cloth?", cat: "Biosecurity", options: [
+                        { text: "Rinse it with water and use it to wipe down passenger armrests and tray tables.", pts: 0 },
+                        { text: "Keep it strictly separated for restroom use or place it in the laundry bin; never use it on passenger seats or contact surfaces.", pts: 5 },
+                        { text: "Store it in the glove compartment for the next shift.", pts: 0 }
+                    ], rationale: "Prevents cross-contamination between the restroom and general passenger seating areas." },
+                    { q: "Fuel and Safety Anomaly. You notice a faint smell of diesel and a small puddle under a bus scheduled for early departure. No supervisor is around and reporting it might delay your exit. What do you do?", cat: "Safety Protocols", options: [
+                        { text: "Ignore it; maintenance will probably notice it in the morning.", pts: 0 },
+                        { text: "Clean the puddle, spray air freshener, and mention it only if you see a mechanic tomorrow.", pts: 0 },
+                        { text: "Keep people away, report it immediately to a supervisor/mechanic, and do not allow departure until inspected.", pts: 5 },
+                        { text: "Move the bus to the back of the yard so the puddle is less visible.", pts: 0 }
+                    ], rationale: "Fuel leaks represent severe mechanical and fire hazards. The unit must be isolated, reported, and grounded until cleared." },
+                    { q: "Lights on after closing. It is the last five minutes of your shift. You've locked up and returned keys, but notice a bus still has interior lights on. Departure is tomorrow afternoon. Most logical action?", cat: "Facility Security", options: [
+                        { text: "Go home, message the group chat; someone on the morning shift will handle it.", pts: 0 },
+                        { text: "Go back, follow protocol to check the bus, turn off lights if authorized. If unsafe to access, report immediately and stay until confirmed.", pts: 5 },
+                        { text: "Ignore it; the alternator will recharge it tomorrow.", pts: 0 },
+                        { text: "Wait in the parking lot 30 mins to see if anyone else notices.", pts: 0 }
+                    ], rationale: "Battery drain and security vulnerabilities require immediate resolution or escalation, not deferral to the morning shift." },
+                    { q: "Calculating cleaning times under pressure. You have 2 hrs 10 mins (130 mins) left. Three buses need standard cleaning (25m interior + 15m exterior = 40m each). One of those also needs a deep clean (+40 mins). Total required = 160 mins. No extra help. What is the plan?", cat: "Time Management", options: [
+                        { text: "Start the deep clean on the first bus and hope to finish; overtime is acceptable.", pts: 0 },
+                        { text: "Calculate the deficit, notify supervisor immediately, complete the 3 standard cleans by departure priority, and schedule/request approval for the deep clean.", pts: 5 },
+                        { text: "Skip exterior wash on all buses to make time for the deep clean.", pts: 0 },
+                        { text: "Only do the deep clean bus because a deep clean is more important than standard cleans.", pts: 0 }
+                    ], rationale: "Alerting supervision early and prioritizing essential dispatch tasks (standard cleans) prevents unapproved overtime and skipped duties." },
+                    { q: "Unauthorized vehicle movement. A coworker asks you to drive a bus 30 meters across the yard because the authorized driver is on break. You have a car license but no bus license. The yard is quiet. What do you do?", cat: "Compliance", options: [
+                        { text: "Do it quickly: 30 meters is low risk.", pts: 0 },
+                        { text: "Refuse, ask them to wait for the authorized driver or supervisor, and report if pressured.", pts: 5 },
+                        { text: "Do it only if someone acts as a spotter.", pts: 0 },
+                        { text: "Try to push it instead.", pts: 0 }
+                    ], rationale: "Operating heavy machinery without formal authorization and insurance coverage is a strict compliance violation, regardless of distance." },
+                    { q: "Staff allocation logic. 5 team members, 45 mins remaining. Tasks: Bus 1 & 2 seat removals (20 mins per bus, requires 2 people each). Bus 3 exterior wash (30 mins, 1 person). Yard sweep (15 mins, 1 person). Logical assignment?", cat: "Resource Allocation", options: [
+                        { text: "Put all 5 on seats first; skip the wash and sweep.", pts: 0 },
+                        { text: "Assign 2 people to do both seat removals consecutively (40m). 1 person on wash (30m). 1 person on sweep (15m) then assist/prep. 1 person floating for checks/issues.", pts: 5 },
+                        { text: "Assign 3 people to wash a bus because it's visible, and do seats later.", pts: 0 },
+                        { text: "Do the yard sweep last because it is least important.", pts: 0 }
+                    ], rationale: "The critical path is the seat removals (40 mins). Assigning roles in parallel maximizes the team within the 45-minute limit while retaining a floater for safety/checks." }
+                ],
+                profiles: [
+                    { range: [0, 45], title: "Requires Improvement", icon: "ph-warning-circle", desc: "Your operational logic needs work. Several decisions pose risks to service quality, safety, or compliance. Reviewing standard operating procedures is necessary." },
+                    { range: [46, 65], title: "Competent Operator", icon: "ph-check-circle", desc: "You possess a good baseline of common sense, though there are areas where priority management and strict adherence to protocols could be improved." },
+                    { range: [66, 75], title: "Operational Leader", icon: "ph-shield-star", desc: "Excellent operational judgment. You consistently prioritize safety, compliance, and logical resource allocation, demonstrating true situational awareness." }
+                ]
+            },
+            esp: {
+                modalTitle: "Registro de Candidato",
+                modalSub: "Ingresa tu nombre para emitir tu certificado y código de verificación al finalizar.",
+                modalName: "Nombre Completo",
+                modalBtn: "Comenzar Evaluación",
+                mainTitle: "Evaluación de Lógica Operativa",
+                mainDesc: "Demuestra tu criterio y sentido común en escenarios reales.",
+                langBtn: "ENG",
+                progLabel: "Pregunta",
+                progOf: "de",
+                calculating: "Procesando...",
+                certLabel: "Certificado de Evaluación",
+                codeLabel: "Código Verificación",
+                scoreText: "Puntuación",
+                tier1: "Requiere Mejora",
+                tier3: "Excelente",
+                diagTitle: "Revisión y Justificaciones",
+                print: "Imprimir Reporte",
+                restart: "Reiniciar Evaluación",
+                questions: [
+                    { q: "Un bus aparece asignado a dos conductores en la hoja del día. ¿Qué haces?", cat: "Asignación de Flota", options: [
+                        { text: "Asumes que es una jornada compartida y no dices nada.", pts: 0 },
+                        { text: "Te parece anormal y preguntas en el grupo para confirmar.", pts: 5 }
+                    ], rationale: "Verificar antes de asumir evita confusiones de servicio o asignación de personal." },
+                    { q: "Tienes 52 pasajeros asignados a un bus de 51 asientos. ¿Qué haces?", cat: "Capacidad y Sobrecupo", options: [
+                        { text: "Asumes que seguro alguien no llega y lo dejas pasar.", pts: 0 },
+                        { text: "Avisas de inmediato en el grupo antes de la salida para que lo solucionen.", pts: 5 },
+                        { text: "Dejas que la situación se resuelva en la mañana y te limitas a hacer tu trabajo.", pts: 0 }
+                    ], rationale: "Reportar el sobrecupo antes de la salida evita problemas graves frente a los pasajeros." },
+                    { q: "Te piden colocar audífonos en los asientos y te encuentras con uno roto. ¿Qué haces?", cat: "Calidad de Servicio", options: [
+                        { text: "Lo reemplazas por uno nuevo, apartas el dañado y avisas en el grupo.", pts: 5 },
+                        { text: "Lo dejas en el asiento; si no funciona, que el pasajero pida cambio luego.", pts: 0 },
+                        { text: "Lo botas a la basura directamente sin avisar a nadie.", pts: 0 }
+                    ], rationale: "Garantiza que el pasajero reciba equipo útil y mantiene control del inventario de mermas." },
+                    { q: "Llega un conductor con equipo que se preparó en la mañana y falta un transmisor. ¿Qué haces?", cat: "Custodia de Inventario", options: [
+                        { text: "Lo dejas pasar, es normal que se pierdan cosas.", pts: 0 },
+                        { text: "Lo anotas en un papel para que alguien lo lea después.", pts: 0 },
+                        { text: "Lo reportas en el grupo y le preguntas al conductor qué pasó con el equipo.", pts: 5 }
+                    ], rationale: "Permite rastrear la custodia del equipo en el momento exacto de la entrega." },
+                    { q: "Cada case de whispers trae 32 unidades. Tienes un bus con 40 pasajeros (idioma A) y 16 (idioma B). ¿Cuántos cases preparas?", cat: "Cálculo", options: [
+                        { text: "2 cases (1 para cada idioma).", pts: 0 },
+                        { text: "3 cases (2 para el grupo de 40 y 1 para el de 16).", pts: 5 },
+                        { text: "4 cases (2 para cada idioma).", pts: 0 }
+                    ], rationale: "40 personas requieren 2 cases (32 + 8) y 16 personas requieren 1 case. Total: 3 cases." },
+                    { q: "Tienes un bus muy sucio que no sale mañana. ¿Qué haces?", cat: "Prioridades", options: [
+                        { text: "Retiras basura y suciedad superficial. Avisas con fotos indicando que se limpiará a fondo mañana con más calma.", pts: 5 },
+                        { text: "Lo limpias a fondo igual, da igual salir tarde, así aseguras horas extra.", pts: 0 },
+                        { text: "Preguntas en el grupo qué hacer.", pts: 0 }
+                    ], rationale: "Prioriza unidades activas, retira basura perecedera y programa la limpieza sin generar horas extra injustificadas." },
+                    { q: "Terminaste de limpiar, pero una zona quedó manchada porque no sabes quitar esa suciedad. ¿Qué haces?", cat: "Estándares de Calidad", options: [
+                        { text: "Lo dejas así, ya cumpliste con pasarle el trapo.", pts: 0 },
+                        { text: "Le preguntas a un compañero/supervisor cómo se limpia y vuelves a hacerlo.", pts: 5 },
+                        { text: "Echas aromatizante para que al menos huela limpio.", pts: 0 }
+                    ], rationale: "Buscar apoyo técnico asegura el estándar de calidad y evita dejar trabajo deficiente." },
+                    { q: "Limpieza general interior de un bus. ¿Cuál es el orden lógico?", cat: "Lógica de Limpieza", options: [
+                        { text: "De arriba hacia abajo: primero techos, ventanas y asientos; al final barrer y trapear el piso.", pts: 5 },
+                        { text: "Trapear el piso primero y después sacudir el polvo de asientos y portaequipajes.", pts: 0 },
+                        { text: "El orden no importa mientras se use desinfectante.", pts: 0 }
+                    ], rationale: "Trabajar de arriba hacia abajo evita ensuciar por gravedad zonas previamente limpiadas." },
+                    { q: "1 litro de desinfectante rinde para 4 buses. Si limpias 12 buses, ¿cuántos litros necesitas?", cat: "Dilución Química", options: [
+                        { text: "2 litros.", pts: 0 },
+                        { text: "3 litros.", pts: 5 },
+                        { text: "4 litros.", pts: 0 }
+                    ], rationale: "Cálculo directo: 12 buses / 4 = 3 litros." },
+                    { q: "Acabas de limpiar el inodoro del baño del bus con un paño. ¿Qué haces con ese paño?", cat: "Bioseguridad", options: [
+                        { text: "Lo enjuagas con agua y lo usas para limpiar los pasamanos y bandejas.", pts: 0 },
+                        { text: "Lo separas exclusivamente para el baño o lavar; nunca lo usas en áreas de pasajeros.", pts: 5 },
+                        { text: "Lo guardas en la guantera para el día siguiente.", pts: 0 }
+                    ], rationale: "Previene la grave contaminación cruzada entre el baño y las superficies de contacto de pasajeros." },
+                    { q: "Anomalía de combustible. Notas olor a diésel y un charco bajo un bus que sale temprano. No hay supervisor y reportarlo retrasaría tu salida. ¿Qué haces?", cat: "Protocolos de Seguridad", options: [
+                        { text: "Ignorarlo; mantenimiento probablemente lo notará por la mañana.", pts: 0 },
+                        { text: "Limpiar el charco, rociar ambientador y mencionarlo solo si ves a un mecánico mañana.", pts: 0 },
+                        { text: "Mantener a las personas alejadas, reportarlo de inmediato y no permitir la salida hasta que sea revisado.", pts: 5 },
+                        { text: "Mover el bus al fondo del patio para que el charco sea menos visible.", pts: 0 }
+                    ], rationale: "El combustible representa un riesgo mecánico y de incendio grave. La unidad debe aislarse y ser inspeccionada de inmediato." },
+                    { q: "Luces encendidas tras el cierre. Son tus últimos 5 minutos. Ya cerraste pero notas un bus con luces interiores encendidas (sale mañana en la tarde). ¿Acción lógica?", cat: "Seguridad de Instalaciones", options: [
+                        { text: "Irte a casa y enviar mensaje; alguien del turno de la mañana se encargará.", pts: 0 },
+                        { text: "Regresar, seguir el protocolo de acceso, apagar luces si estás autorizado. Si no puedes acceder, reportarlo de inmediato y esperar confirmación.", pts: 5 },
+                        { text: "Ignorarlo; el alternador recargará la batería mañana.", pts: 0 },
+                        { text: "Esperar en el estacionamiento 30 minutos a ver si alguien más lo nota.", pts: 0 }
+                    ], rationale: "El drenaje de batería y la seguridad exigen resolución o escalamiento inmediato, no dejarlo para el turno siguiente." },
+                    { q: "Tiempos bajo presión. Te quedan 130 mins. Tres buses requieren limpieza estándar (25m interior + 15m exterior = 40m c/u). Uno requiere profunda (+40 mins). Total requerido: 160 mins. Sin ayuda. ¿Plan lógico?", cat: "Gestión del Tiempo", options: [
+                        { text: "Comenzar la profunda en el primer bus y esperar terminar; las horas extras son aceptables.", pts: 0 },
+                        { text: "Calcular el tiempo faltante, avisar al supervisor ahora mismo, completar las 3 estándar por prioridad de salida y programar/pedir aprobación para la profunda.", pts: 5 },
+                        { text: "Omitir limpieza exterior en todos para hacer tiempo para la profunda.", pts: 0 },
+                        { text: "Hacer únicamente el bus profundo porque es más importante.", pts: 0 }
+                    ], rationale: "Alertar a tiempo y priorizar tareas indispensables para la salida del servicio evita horas extra no autorizadas o tareas saltadas." },
+                    { q: "Movimiento no autorizado. Un compañero te pide conducir un bus 30 metros porque el conductor autorizado está en su descanso. Tienes licencia de auto pero no de bus. ¿Qué haces?", cat: "Cumplimiento", options: [
+                        { text: "Hacerlo rápido: 30 metros representan bajo riesgo.", pts: 0 },
+                        { text: "Negarte, pedir que espere al conductor autorizado/supervisor y reportarlo si te presionan.", pts: 5 },
+                        { text: "Hacerlo solo si alguien vigila.", pts: 0 },
+                        { text: "Intentar empujarlo en su lugar.", pts: 0 }
+                    ], rationale: "La habilitación y cobertura de seguro son obligatorias. Mover maquinaria pesada sin licencia es una falta grave, sin importar la distancia." },
+                    { q: "Lógica de asignación. 5 personas, 45 mins. Bus 1 y 2: desmontaje asientos (20m c/u, requiere 2 personas). Bus 3: lavado exterior (30m, 1 persona). Patio: barrido (15m, 1 persona). ¿Asignación lógica?", cat: "Asignación de Recursos", options: [
+                        { text: "Poner a los 5 en asientos primero; omitir lavado y barrido.", pts: 0 },
+                        { text: "2 personas hacen los desmontajes consecutivamente (40m). 1 al lavado (30m). 1 al barrido (15m) y luego apoya. 1 persona verifica imprevistos.", pts: 5 },
+                        { text: "3 personas a lavar un bus porque es lo más visible y hacer asientos después.", pts: 0 },
+                        { text: "Hacer el barrido al final porque es lo menos importante.", pts: 0 }
+                    ], rationale: "La ruta crítica (asientos) toma 40 mins. Distribuir al equipo en paralelo maximiza el tiempo límite de 45 mins y mantiene un margen de seguridad." }
+                ],
+                profiles: [
+                    { range: [0, 45], title: "Requiere Mejora", icon: "ph-warning-circle", desc: "Tu criterio operativo necesita trabajo. Varias decisiones ponen en riesgo la seguridad, cumplimiento o calidad. Es necesario repasar los protocolos operativos." },
+                    { range: [46, 65], title: "Operador Competente", icon: "ph-check-circle", desc: "Posees un buen sentido común base, aunque existen áreas de oportunidad en la gestión de prioridades bajo presión y apego estricto a las normas de seguridad." },
+                    { range: [66, 75], title: "Líder Operacional", icon: "ph-shield-star", desc: "Excelente criterio. Demuestras visión integral priorizando la seguridad, el cumplimiento de la flota y la asignación lógica de recursos." }
+                ]
+            }
+        };
+
+        let currentLang = 'esp';
+        let currentStep = 0;
+        let scores = [];
+        let candidateName = "";
+        let answersLog = [];
+
+        function init() { renderLanguage(); }
+
+        function handleStartAssessment(e) {
+            e.preventDefault();
+            const input = document.getElementById('candidate-name-input');
+            if(input.value.trim() !== "") {
+                candidateName = input.value.trim();
+                document.getElementById('name-modal').classList.add('hidden');
+                document.getElementById('progress-container').classList.remove('hidden');
+                document.getElementById('question-wrapper').classList.remove('hidden');
+                renderStep();
+            }
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'esp' : 'en';
+            renderLanguage();
+            
+            // Update Modal UI if haven't started
+            const t = content[currentLang];
+            document.getElementById('modal-title').innerText = t.modalTitle;
+            document.getElementById('modal-subtitle').innerText = t.modalSub;
+            document.getElementById('modal-name-label').innerText = t.modalName;
+            document.getElementById('modal-start-btn').querySelector('span').innerText = t.modalBtn;
+
+            if (currentStep > 0 && currentStep < 15) renderStep(); 
+            else if (currentStep >= 15) showResults();
+        }
+
+        function renderLanguage() {
+            const t = content[currentLang];
+            document.getElementById('main-title').innerText = t.mainTitle;
+            document.getElementById('main-desc').innerText = t.mainDesc;
+            
+            const labels = document.querySelectorAll('.lang-label-text');
+            labels.forEach(el => el.innerText = currentLang === 'en' ? 'ESP' : 'ENG');
+
+            document.getElementById('cert-label').innerText = t.certLabel;
+            document.getElementById('code-label').innerText = t.codeLabel;
+            document.getElementById('tier-1-label').innerText = t.tier1;
+            document.getElementById('tier-3-label').innerText = t.tier3;
+            document.getElementById('diagnostics-title').innerHTML = `<i class="ph ph-clipboard-text"></i> ${t.diagTitle}`;
+            document.getElementById('print-btn').innerText = t.print;
+            document.getElementById('reset-btn').innerText = t.restart;
+            document.getElementById('calculating-text').innerText = t.calculating;
+        }
+
+        function renderStep() {
+            const t = content[currentLang];
+            const wrapper = document.getElementById('question-wrapper');
+            const progressLabel = document.getElementById('progress-label');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressBar = document.getElementById('progress-bar');
+            
+            if (currentStep >= 15) return;
+            
+            const qData = t.questions[currentStep];
+            const progress = ((currentStep + 1) / 15) * 100;
+            
+            progressLabel.innerText = `${t.progLabel} ${currentStep + 1} ${t.progOf} 15`;
+            progressPercent.innerText = `${progress.toFixed(0)}%`;
+            progressBar.style.width = `${progress}%`;
+            
+            let optionsHtml = qData.options.map((opt, idx) => `
+                <label class="group relative flex items-center p-4 border border-outline-variant/50 rounded-2xl cursor-pointer hover:border-secondary hover:bg-surface-container-highest/50 transition-all duration-200">
+                    <input class="sr-only" type="radio" name="step_option" value="${opt.pts}" onchange="handleSelect(${opt.pts}, ${idx})">
+                    <div class="w-5 h-5 rounded-full border-2 border-outline-variant flex items-center justify-center mr-4 transition-all shrink-0">
+                        <div class="w-2.5 h-2.5 bg-secondary rounded-full scale-0 transition-transform duration-200 check-dot"></div>
+                    </div>
+                    <span class="text-sm font-medium text-on-surface-variant group-hover:text-primary leading-snug">${opt.text}</span>
+                </label>
+            `).join('');
+
+            wrapper.innerHTML = `
+                <div class="glass-card border border-outline-variant/40 rounded-3xl p-6 md:p-8 shadow-xl step-transition translate-y-0 opacity-100">
+                    <div class="mb-6 md:mb-8">
+                        <span class="text-[10px] font-bold text-secondary bg-secondary-container px-3 py-1 rounded-md uppercase tracking-widest">${qData.cat}</span>
+                        <h2 class="font-headline text-xl md:text-2xl text-on-surface leading-tight mt-4">${qData.q}</h2>
+                    </div>
+                    <div class="space-y-3">
+                        ${optionsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleSelect(points, selectedIdx) {
+            scores[currentStep] = points;
+            answersLog[currentStep] = { points: points, selectedIdx: selectedIdx };
+            
+            setTimeout(() => {
+                currentStep++;
+                if (currentStep < 15) renderStep(); else showResults();
+            }, 450);
+        }
+
+        function spawnConfetti() {
+            const container = document.getElementById('confetti-container');
+            const colors = ['#006c49', '#6cf8bb', '#003527', '#4ade80', '#ffffff'];
+            for (let i = 0; i < 60; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti-piece';
+                piece.style.left = Math.random() * 100 + 'vw';
+                piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                piece.style.animationDelay = Math.random() * 2 + 's';
+                piece.style.width = (Math.random() * 8 + 4) + 'px';
+                piece.style.height = piece.style.width;
+                container.appendChild(piece);
+            }
+        }
+
+        function generateVerificationCode(score) {
+            const d = new Date();
+            const dateStr = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`;
+            const timeCode = Date.now().toString(36).substring(4).toUpperCase();
+            return `${dateStr}-${timeCode}-${score}`;
+        }
+
+        function showResults() {
+            const t = content[currentLang];
+            const totalScore = scores.reduce((a, b) => a + b, 0);
+            const profile = t.profiles.find(p => totalScore >= p.range[0] && totalScore <= p.range[1]) || t.profiles[0];
+            
+            // Re-hide questions and start animation process
+            document.getElementById('question-wrapper').classList.add('hidden');
+            document.getElementById('progress-container').classList.add('opacity-0', 'pointer-events-none');
+            
+            const results = document.getElementById('results-container');
+            results.classList.remove('hidden'); // This triggers the CSS fadeout of #loading-overlay and scale-in of .reveal-card
+
+            // Populate Meta Info
+            document.getElementById('display-candidate-name').innerText = candidateName;
+            document.getElementById('display-date').innerText = new Date().toLocaleString(currentLang === 'esp' ? 'es-ES' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
+            document.getElementById('display-code').innerText = generateVerificationCode(totalScore);
+            document.getElementById('result-score-text').innerHTML = `${t.scoreText}: <span class="text-primary text-lg">${totalScore}</span><span class="text-xs text-on-surface-variant">/75 pts</span>`;
+
+            // Gauge animation logic
+            const ptr = document.getElementById('gauge-ptr');
+            ptr.style.left = "0%"; 
+            setTimeout(() => {
+                const gaugePercent = (totalScore / 75) * 100;
+                ptr.style.left = `${gaugePercent}%`;
+            }, 100);
+
+            // Trigger confetti for high scores
+            if (totalScore >= 66) setTimeout(spawnConfetti, 1500);
+
+            // Populate Profile Data
+            document.getElementById('result-title').innerText = profile.title;
+            document.getElementById('result-desc').innerText = profile.desc;
+            document.getElementById('result-icon').className = `ph ${profile.icon} text-secondary text-3xl`;
+
+            // Populate Diagnostic Review
+            const diagList = document.getElementById('diagnostics-list');
+            diagList.innerHTML = t.questions.map((q, idx) => {
+                const ans = answersLog[idx];
+                const isCorrect = ans.points === 5;
+                const icon = isCorrect ? '<i class="ph-fill ph-check-circle text-green-500 text-lg shrink-0"></i>' : '<i class="ph-fill ph-x-circle text-red-500 text-lg shrink-0"></i>';
+                const bgClass = isCorrect ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100';
+                
+                return `
+                    <div class="p-4 rounded-xl border ${bgClass} flex gap-3 text-sm print-break">
+                        ${icon}
+                        <div>
+                            <p class="font-bold text-on-background mb-1">${idx + 1}. ${q.cat}</p>
+                            <p class="text-on-surface-variant italic mb-2 text-xs opacity-80">${q.q}</p>
+                            <p class="text-on-surface-variant leading-relaxed text-xs">
+                                <strong>${isCorrect ? (currentLang === 'esp' ? 'Correcto' : 'Correct') : (currentLang === 'esp' ? 'Incorrecto' : 'Incorrect')}:</strong> ${q.rationale}
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
